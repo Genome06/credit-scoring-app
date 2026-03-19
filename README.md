@@ -1,3 +1,13 @@
+---
+title: Home Dredit Risk Analysis
+emoji: 💳
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+license: mit
+---
+
 # 💳 Predictive Analytics for Home Credit Default Risk (Kaggle Competition)
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/)
@@ -59,8 +69,6 @@ The project follows **Clean Architecture** principles to ensure maintainability 
 * `CreditPredictor`: Manages model inference, risk thresholding logic, and business insight mapping.
 * `Schemas`: Utilizes **Pydantic** for rigorous data validation and automatic Swagger documentation.
 
----
-
 ## 📂 Directory Structure
 
 ```text
@@ -106,14 +114,3 @@ Access the UI at http://localhost:7860.
 This application is designed to be deployed on Hugging Face Spaces. It uses a custom run.sh entrypoint to orchestrate both the FastAPI backend (internal) and the Streamlit frontend (public) within a single Docker container.
 
 **Disclaimer: This project is a personal portfolio developed for educational purposes. It utilizes the public dataset provided by Home Credit on Kaggle. This application is not affiliated with, endorsed by, or an official product of Home Credit Group.**
-
-
----
-title: Home Dredit Risk Analysis
-emoji: 💳
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
-license: mit
----
