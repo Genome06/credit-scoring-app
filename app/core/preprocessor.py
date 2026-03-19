@@ -6,12 +6,12 @@ from typing import List, Dict, Union
 class DataTransformer:
     def __init__(self, scaler_path: str):
         """
-        Menginisialisasi objek transformasi data berbasis OOP.
+        Initialize OOP-based data transformation object.
         """
-        print(f"📂 Loading Scaler dari {scaler_path}...")
+        print(f"📂 Loading Scaler from {scaler_path}...")
         self.scaler = joblib.load(scaler_path)
         
-        # Urutan 26 fitur wajib (disesuaikan dengan list info() kamu)
+        # Order of 26 mandatory features (adjusted to your info() list)
         self.final_features_list = [
             'EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'EXT_SOURCES_MEAN', 
             'EXT_SOURCES_NAN_COUNT', 'AGE', 'DAYS_EMPLOYED_ANOM', 'REGION_RATING_CLIENT_W_CITY',
@@ -25,7 +25,7 @@ class DataTransformer:
             'DAYS_EMPLOYED_PERC_LOG', 'DAYS_EMPLOYED_ABS'
         ]
 
-        # 13 Fitur yang memang di-fit ke Scaler
+        # 13 Features that are indeed fitted to Scaler
         self.num_cols_to_scale = [
             'INCOME_CREDIT_PERC_LOG', 'DAYS_EMPLOYED_PERC_LOG', 'AMT_ANNUITY_LOG', 
             'GOODS_RATIO_LOG', 'ANNUITY_INCOME_PERC_LOG', 'AMT_CREDIT_LOG', 
@@ -33,7 +33,7 @@ class DataTransformer:
             'EXT_SOURCE_3', 'EXT_SOURCES_MEAN', 'DAYS_EMPLOYED_ABS'
         ]
         
-        # Median dari data training (Sesuai yang kamu masukkan tadi)
+        # Median from training data (According to what you entered earlier)
         self.training_medians = {
             'EXT_SOURCE_1': 0.5, 'EXT_SOURCE_2': 0.56, 'EXT_SOURCE_3': 0.53,
             'AMT_ANNUITY': 24903.0, 'AMT_CREDIT': 513531.0, 'DAYS_BIRTH': -15750,
@@ -48,18 +48,18 @@ class DataTransformer:
         self.valid_incomes = ['Working', 'Commercial associate', 'Pensioner', 'State servant']
 
     def _feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Helper method untuk engineering fitur numerik dasar & rasio."""
+        """Helper method for basic numeric feature engineering & ratios."""
         df = df.copy()
         
-        # Fitur Dasar
+        # Basic Features
         df['EXT_SOURCES_MEAN'] = df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']].mean(axis=1)
         df['EXT_SOURCES_NAN_COUNT'] = df[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']].isnull().sum(axis=1)
         df['AGE'] = df['DAYS_BIRTH'] / -365
         df['DAYS_EMPLOYED_ANOM'] = (df['DAYS_EMPLOYED'] == 365243).astype(int)
         df['DAYS_EMPLOYED_ABS'] = df['DAYS_EMPLOYED'].abs()
         
-        # Financial Ratios (Mencegah pembagian dengan nol)
-        epsilon = 1e-6 # Angka kecil agar tidak error div by zero
+        # Financial Ratios (Preventing division by zero)
+        epsilon = 1e-6 # Small number so no error div by zero
         df['PAYMENT_RATE'] = df['AMT_ANNUITY'] / (df['AMT_CREDIT'] + epsilon)
         df['INCOME_CREDIT_PERC'] = df['AMT_INCOME_TOTAL'] / (df['AMT_CREDIT'] + epsilon)
         df['ANNUITY_INCOME_PERC'] = df['AMT_ANNUITY'] / (df['AMT_INCOME_TOTAL'] + epsilon)
@@ -69,15 +69,15 @@ class DataTransformer:
         return df
 
     def _log_transformation(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Helper method untuk transformasi log (log1p)."""
+        """Helper method for log transformation (log1p)."""
         df = df.copy()
         for col in self.cols_to_log:
-            # Menggunakan max(0, val) agar log1p tidak error untuk input negatif yang tak terduga
+            # Using max(0, val) so log1p doesn't error for unexpected negative input
             df[f'{col}_LOG'] = np.log1p(df[col].apply(lambda x: max(0, x)))
         return df
 
     def _categorical_encoding(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Helper method untuk grouping dan OHE."""
+        """Helper method for grouping and OHE."""
         df = df.copy()
         
         # Grouping Income Type
@@ -91,32 +91,32 @@ class DataTransformer:
 
     def transform(self, raw_data_list: List[Dict]) -> np.ndarray:
         """
-        Method utama untuk memproses list data mentah dari API menjadi scaled numpy array.
+        Main method to process raw data list from API into scaled numpy array.
         """
-        print(f"🛠️ Memproses {len(raw_data_list)} data nasabah...")
+        print(f"🛠️ Processing {len(raw_data_list)} customer data...")
         
         df = pd.DataFrame(raw_data_list)
         
-        # 1. Imputasi Median (Fitur Mentah)
+        # 1. Median Imputation (Raw Features)
         for col, median in self.training_medians.items():
             if col in df.columns:
                 df[col] = df[col].fillna(median)
         
-        # 2. Pipa Transformasi
+        # 2. Transformation Pipeline
         df = self._feature_engineering(df)
         df = self._categorical_encoding(df)
         df = self._log_transformation(df)
         
-        # 3. Alignment 26 Kolom
+        # 3. 26 Columns Alignment
         X_final = df.reindex(columns=self.final_features_list)
         
-        # 4. Safety Net: Hanya isi 0 untuk kolom yang MASIH NaN (biasanya kolom dummies)
-        # Ini tidak akan merusak median karena median sudah masuk di tahap 1
+        # 4. Safety Net: Only fill 0 for columns that are STILL NaN (usually dummy columns)
+        # This won't damage the median because median has already entered in stage 1
         X_final = X_final.fillna(0)
         
-        # 5. Partial Scaling (KUNCI PERBAIKAN ERROR 13 vs 26)
-        # Kita hanya scale 13 kolom, tapi hasilnya tetap kita simpan di dalam dataframe 26 kolom
+        # 5. Partial Scaling (KEY FIX FOR 13 vs 26 ERROR)
+        # We only scale 13 columns, but the results we still save in the 26-column dataframe
         X_final[self.num_cols_to_scale] = self.scaler.transform(X_final[self.num_cols_to_scale])
         
-        print(f"✅ Data siap. Shape: {X_final.shape}") # Harus (n, 26)
+        print(f"✅ Data ready. Shape: {X_final.shape}") # Must be (n, 26)
         return X_final.values

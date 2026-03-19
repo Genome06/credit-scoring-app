@@ -6,92 +6,90 @@ from app.core.preprocessor import DataTransformer
 class CreditPredictor:
     def __init__(self, model_path: str, scaler_path: str):
         """
-        Inisialisasi predictor dengan memuat model dan preprocessor.
+        Initialize predictor by loading model and preprocessor.
         """
-        print(f"🚀 Memuat Model dari {model_path}...")
+        print(f"🚀 Loading Model from {model_path}...")
         self.model = joblib.load(model_path)
         
-        # Inisialisasi DataTransformer (OOP Component sebelumnya)
+        # Initialize DataTransformer (OOP Component previously)
         self.transformer = DataTransformer(scaler_path)
 
     def _get_analysis_result(self, prob: float) -> dict:
         """
-        Logic pusat untuk menentukan Rating dan Pesan Informatif.
+        Central logic to determine Rating and Informative Message.
         """
         if prob < 0.3:
             return {
-                "rating": "Low Risk (Lancar)",
+                "rating": "Low Risk (Smooth)",
                 "message": (
-                    "✅ **Profil Sangat Baik.** Nasabah menunjukkan indikator stabilitas finansial yang kuat. "
-                    "Skor kredit eksternal berada di atas rata-rata dan beban cicilan (Payment Rate) "
-                    "tergolong rendah. Pengajuan ini sangat direkomendasikan untuk disetujui (Auto-Approval)."
+                    "✅ **Very Good Profile.** Customer shows strong financial stability indicators. "
+                    "External credit scores are above average and debt burden (Payment Rate) "
+                    "is relatively low. This application is highly recommended for approval (Auto-Approval)."
                 )
             }
         elif prob < 0.6:
             return {
-                "rating": "Medium Risk (Waspada)",
+                "rating": "Medium Risk (Caution)",
                 "message": (
-                    "⚠️ **Tinjauan Manual Diperlukan.** Profil nasabah berada di ambang batas aman. "
-                    "Terdapat sedikit fluktuasi pada skor eksternal atau rasio hutang yang mulai meningkat. "
-                    "Disarankan untuk melakukan verifikasi dokumen pendapatan tambahan atau mempertimbangkan "
-                    "tenor pinjaman yang lebih pendek."
+                    "⚠️ **Manual Review Required.** Customer profile is on the safe threshold. "
+                    "There is slight fluctuation in external scores or debt ratio starting to increase. "
+                    "It is recommended to verify additional income documents or consider shorter loan terms."
                 )
             }
         else:
             return {
-                "rating": "High Risk (Macet)",
+                "rating": "High Risk (Default)",
                 "message": (
-                    "🚨 **Peringatan Risiko Tinggi.** Berdasarkan analisis pola data, nasabah memiliki probabilitas "
-                    "gagal bayar yang signifikan. Hal ini biasanya dipicu oleh beban cicilan yang terlalu berat "
-                    "dibandingkan pendapatan atau rekam jejak kredit eksternal yang lemah. "
-                    "Sangat disarankan untuk melakukan penolakan atau meminta jaminan tambahan."
+                    "🚨 **High Risk Warning.** Based on data pattern analysis, the customer has a significant probability of default. "
+                    "This is usually triggered by debt burden that is too heavy compared to income or weak external credit history. "
+                    "It is highly recommended to reject or request additional collateral."
                 )
             }
     
-    # --- NEW: Helper untuk Batch (Vectorized) ---
+    # --- NEW: Helper for Batch (Vectorized) ---
     def _get_risk_rating_batch(self, prob: float) -> str:
-        """Helper simpel untuk digunakan dengan .apply() pada series."""
+        """Simple helper to use with .apply() on series."""
         if prob < 0.3: return "Low Risk"
         elif prob < 0.6: return "Medium Risk"
         else: return "High Risk"
 
-    # --- NEW: Method untuk prediksi BATCH (CSV/DataFrame) ---
+    # --- NEW: Method for BATCH prediction (CSV/DataFrame) ---
     def predict_batch(self, df_input: pd.DataFrame) -> pd.DataFrame:
         """
-        Menerima DataFrame mentah, memprosesnya, dan mengembalikan 
-        DataFrame yang sudah berisi hasil prediksi (Probability & Rating).
+        Receives raw DataFrame, processes it, and returns 
+        DataFrame that already contains prediction results (Probability & Rating).
         """
-        print(f"📊 Memproses Batch Prediction untuk {len(df_input)} baris...")
+        print(f"📊 Processing Batch Prediction for {len(df_input)} rows...")
         
-        # 1. Konversi DF ke List[Dict] agar bisa diproses preprocessor OOP kita
+        # 1. Convert DF to List[Dict] so it can be processed by our OOP preprocessor
         raw_data_list = df_input.to_dict('records')
         
-        # 2. Transformasi Data (26 kolom + Scaling) - Ini sudah vectorized di dalam class
+        # 2. Data Transformation (26 columns + Scaling) - This is already vectorized inside the class
         X_scaled = self.transformer.transform(raw_data_list)
         
-        # 3. Prediksi Probabilitas (Vectorized)
-        # Menggunakan numpy array slicing [:, 1] sangat cepat
+        # 3. Probability Prediction (Vectorized)
+        # Using numpy array slicing [:, 1] is very fast
         probs = self.model.predict_proba(X_scaled)[:, 1]
         
-        # 4. Gabungkan hasil ke DataFrame output
+        # 4. Combine results to output DataFrame
         df_output = df_input.copy()
         df_output['PRED_PROBABILITY'] = np.round(probs, 4)
         
-        # 5. Tentukan Rating (Vectorized apply)
-        # Catatan: Kita tidak memberikan 'message' detail di CSV agar file tidak terlalu besar
+        # 5. Determine Rating (Vectorized apply)
+        # Note: We do not provide detailed 'message' in CSV so the file is not too large
         df_output['PRED_RISK_RATING'] = df_output['PRED_PROBABILITY'].apply(self._get_risk_rating_batch)
         
-        print("✅ Batch Prediction selesai.")
+        print("✅ Batch Prediction completed.")
         return df_output
 
     def predict(self, input_data: dict) -> dict:
         """
-        Method utama yang memanggil logic pesan detail.
+        Main method that calls detailed message logic.
         """
         X_scaled = self.transformer.transform([input_data])
         prob = self.model.predict_proba(X_scaled)[0, 1]
         
-        # Ambil rating dan pesan berdasarkan probabilitas
+        # Get rating and message based on probability
         analysis = self._get_analysis_result(prob)
         
         return {

@@ -1,0 +1,19 @@
+[theme]
+# Warna utama untuk tombol, slider, dan tab (Professional Success Green)
+primaryColor = "#28a745"
+
+# Warna latar belakang utama (Deep Dark)
+backgroundColor = "#0e1117"
+
+# Warna sidebar dan kartu (Darker Grey/Navy)
+secondaryBackgroundColor = "#1f2937"
+
+# Warna teks (Putih bersih agar tidak 'hantu')
+textColor = "#ffffff"
+
+# Jenis font
+font = "sans serif"
+
+[server]
+# Menyembunyikan menu Streamlit di pojok kanan atas agar lebih clean
+headless = true

@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File # Tambah UploadFile & File
+from fastapi import FastAPI, HTTPException, UploadFile, File # Add UploadFile & File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse # Untuk custom response
+from fastapi.responses import JSONResponse # For custom response
 from app.api.schemas import CreditInput, PredictionResponse
 from app.core.predictor import CreditPredictor
 import io
@@ -8,47 +8,47 @@ import os
 import pandas as pd
 import numpy as np
 
-# 1. Inisialisasi FastAPI
+# 1. FastAPI Initialization
 app = FastAPI(
     title="Home Credit Risk Scoring API",
-    description="API untuk memprediksi probabilitas gagal bayar nasabah menggunakan LightGBM Tuned.",
+    description="API to predict customer default probability using LightGBM Tuned.",
     version="1.0.0"
 )
 
-# 2. Konfigurasi CORS (Cross-Origin Resource Sharing)
-# Penting agar Frontend Streamlit bisa berkomunikasi dengan Backend FastAPI tanpa hambatan keamanan
+# 2. CORS Configuration (Cross-Origin Resource Sharing)
+# Important so that Streamlit Frontend can communicate with FastAPI Backend without security barriers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Di produksi, sebaiknya batasi ke domain tertentu
+    allow_origins=["*"], # In production, it's better to limit to certain domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 3. Path Artifacts (Model & Scaler)
-# Kita asumsikan struktur folder sesuai yang kita buat di root project
+# 3. Artifacts Path (Model & Scaler)
+# We assume the folder structure matches what we created in the root project
 MODEL_PATH = "artifacts/home_credit_lgbm_tuned.joblib"
 SCALER_PATH = "artifacts/scaler_home_credit.joblib"
 
-# Variabel Global untuk Predictor (Singleton Pattern)
+# Global Variable for Predictor (Singleton Pattern)
 predictor = None
 
 @app.on_event("startup")
 async def startup_event():
     """
-    Memuat model dan scaler ke memori saat aplikasi pertama kali dijalankan.
-    Ini menghemat waktu latensi pada setiap request prediksi.
+    Load model and scaler into memory when the application is first run.
+    This saves latency time on each prediction request.
     """
     global predictor
     if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH):
-        print("❌ ERROR: File model atau scaler tidak ditemukan di folder 'artifacts'!")
+        print("❌ ERROR: Model or scaler file not found in 'artifacts' folder!")
         return
     
     try:
         predictor = CreditPredictor(model_path=MODEL_PATH, scaler_path=SCALER_PATH)
-        print("✅ Model dan Scaler berhasil dimuat. API siap melayani!")
+        print("✅ Model and Scaler successfully loaded. API ready to serve!")
     except Exception as e:
-        print(f"❌ Terjadi kesalahan saat memuat model: {e}")
+        print(f"❌ An error occurred while loading the model: {e}")
 
 # 4. Endpoints
 @app.get("/")
@@ -63,57 +63,57 @@ def root():
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_risk(data: CreditInput):
     """
-    Endpoint utama untuk menerima data nasabah dan mengembalikan skor risiko.
+    Main endpoint to receive customer data and return risk score.
     """
     if predictor is None:
-        raise HTTPException(status_code=503, detail="Model belum siap atau gagal dimuat.")
+        raise HTTPException(status_code=503, detail="Model not ready or failed to load.")
     
     try:
-        # Konversi Pydantic Model ke Python Dictionary
-        # Pydantic v2 menggunakan .model_dump(), v1 menggunakan .dict()
+        # Convert Pydantic Model to Python Dictionary
+        # Pydantic v2 uses .model_dump(), v1 uses .dict()
         input_dict = data.model_dump() 
         
-        # Eksekusi Prediksi lewat Layer Predictor
+        # Execute Prediction through Predictor Layer
         prediction_results = predictor.predict(input_dict)
         
         return prediction_results
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan internal: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal error occurred: {str(e)}")
 
-# NEW: Endpoint untuk BATCH (CSV Upload)
+# NEW: Endpoint for BATCH (CSV Upload)
 @app.post("/predict-batch")
 async def predict_risk_batch(file: UploadFile = File(...)):
     """
-    Endpoint untuk menerima unggahan CSV, memprosesnya, dan 
-    mengembalikan hasil prediksi dalam format JSON (yang nanti diubah FE jadi CSV).
+    Endpoint to receive CSV upload, process it, and 
+    return prediction results in JSON format (which will later be converted by FE to CSV).
     """
     if predictor is None:
-        raise HTTPException(status_code=503, detail="Model belum siap.")
+        raise HTTPException(status_code=503, detail="Model not ready.")
     
-    # Validasi Tipe File
+    # File Type Validation
     if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="File harus berformat CSV.")
+        raise HTTPException(status_code=400, detail="File must be in CSV format.")
     
     try:
-        # Baca konten file CSV menjadi Pandas DataFrame
+        # Read CSV file content into Pandas DataFrame
         contents = await file.read()
-        # Menggunakan io.BytesIO untuk membaca stream data tanpa menyimpannya ke disk
+        # Using io.BytesIO to read data stream without saving to disk
         df_input = pd.read_csv(io.BytesIO(contents))
         
-        # Pastikan kolom minimal ada (Contoh: EXT_SOURCE_1 wajib ada)
-        # Sebagai informatics, validasi kolom mentah itu penting
+        # Ensure minimum columns exist (Example: EXT_SOURCE_1 is mandatory)
+        # As an informatics engineer, validating raw columns is important
         required_cols = ['AMT_CREDIT', 'AMT_ANNUITY', 'DAYS_BIRTH']
         if not all(col in df_input.columns for col in required_cols):
-             raise HTTPException(status_code=422, detail=f"CSV kekurangan kolom wajib: {required_cols}")
+             raise HTTPException(status_code=422, detail=f"CSV lacks mandatory columns: {required_cols}")
 
-        # 1. Eksekusi Prediksi Batch
+        # 1. Execute Batch Prediction
         df_result = predictor.predict_batch(df_input)
         
-        # 2. KUNCI PERBAIKAN: Ganti NaN menjadi None agar JSON-compliant
-        # Kita menggunakan .replace({np.nan: None}) karena None akan berubah jadi 'null' di JSON
+        # 2. KEY FIX: Replace NaN with None to be JSON-compliant
+        # We use .replace({np.nan: None}) because None will become 'null' in JSON
         df_final = df_result.replace({np.nan: None})
         
-        # 3. Konversi ke JSON records
+        # 3. Convert to JSON records
         result_json = df_final.to_dict(orient='records')
         
         return JSONResponse(content={
@@ -123,6 +123,6 @@ async def predict_risk_batch(file: UploadFile = File(...)):
         })
         
     except Exception as e:
-        # Tambahkan print ke console backend untuk debugging yang lebih jelas
+        # Add print to backend console for clearer debugging
         print(f"Detail Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan pemrosesan file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"File processing error occurred: {str(e)}")
